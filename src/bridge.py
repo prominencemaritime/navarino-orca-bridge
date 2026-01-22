@@ -2,6 +2,7 @@
 
 import logging
 from typing import List, Dict, Any
+from config.settings import get_config
 from src.clients.infinity import InfinityWebServiceClient
 from src.clients.orca import ORCAClient
 from src.parsers.infinity_parser import InfinityParser
@@ -222,6 +223,14 @@ class InfinityORCABridge:
         Returns:
             List of sync results for each vessel
         """
+        # Safety check: if dry_run is False but config says dry_run, warn
+        cfg = get_config()
+        
+        if not dry_run and cfg.dry_run:
+            logger.warning("Method called with dry_run=False but config has DRY_RUN=True")
+            logger.warning("Using config value (DRY_RUN=True) for safety")
+            dry_run = True
+
         logger.info(f"Starting batch sync | vessels={len(vessel_identifiers)} | history={sync_history} | dry_run={dry_run}")
         
         results = []

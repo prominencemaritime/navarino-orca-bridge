@@ -29,6 +29,7 @@ logs/*.txt
 *.log
 
 # Data (if sensitive)
+data/
 data/*.csv
 data/*.json
 !data/.gitkeep

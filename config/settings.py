@@ -16,6 +16,9 @@ class BridgeConfig:
     logs_dir: Path
     data_dir: Path
 
+    # Bridge Operation Mode
+    dry_run: bool
+
     # Email settings
     smtp_host: str
     smtp_port: int
@@ -75,8 +78,20 @@ class BridgeConfig:
         logs_dir.mkdir(exist_ok=True)
         data_dir.mkdir(exist_ok=True)
 
-        # Load email routing config
-        email_routing = cls._load_email_routing()
+        # Load email routing config if enabled
+        enable_email_alert = config('ENABLE_EMAIL_ALERT', default=False, cast=bool)
+
+        if enable_email_alert:
+            email_routing = cls._load_email_routing()
+            smtp_host=config('SMTP_HOST')
+            smtp_port=config('SMTP_PORT', default=465, cast=int)
+            smtp_user=config('SMTP_USER')
+            smtp_pass=config('SMTP_PASS')
+        else:
+            email_routing = {'to': [], 'cc': []}
+            smtp_host = smtp_user = smtp_pass = ''
+            smtp_port = 465
+
 
         # Parse vessel ref codes and imos
         vessel_identifiers = cls._load_vessel_identifiers()
@@ -87,12 +102,15 @@ class BridgeConfig:
             logs_dir=logs_dir,
             data_dir=data_dir,
 
+            # Bridge Operation Mode
+            dry_run=config('DRY_RUN'),
+
             # Email Configuration
-            smtp_host=config('SMTP_HOST'),
-            smtp_port=config('SMTP_PORT', default=465, cast=int),
-            smtp_user=config('SMTP_USER'),
-            smtp_pass=config('SMTP_PASS'),
-            enable_email_alert=config('ENABLE_EMAIL_ALERT', default=False, cast=bool),
+            smtp_host=smtp_host,
+            smtp_port=smtp_port,
+            smtp_user=smtp_user,
+            smtp_pass=smtp_pass,
+            enable_email_alert=enable_email_alert,
             email_routing=email_routing,    # {'to': [...], 'cc': [...]}
 
             # Infinity Web Services
@@ -110,7 +128,7 @@ class BridgeConfig:
             sync_interval_minutes=int(config('SYNC_INTERVAL_MINUTES', default=5)),
             timezone=config('TIMEZONE', default='UTC'),
 
-            # Logs
+            # Logs
             log_file=logs_dir / config('LOG_FILE', default='bridge.log'),
             log_level=config('LOG_LEVEL', default='INFO'),
             request_timeout=config("REQUEST_TIMEOUT", default=30, cast=int),
@@ -180,6 +198,19 @@ class BridgeConfig:
             logger.error("Infinity credentials incomplete")
             raise ValueError("Infinity credentials incomplete")
         logger.info(f"Infinity: {self.infinity_base_url} | vessel{'' if len(self.vessel_identifiers)==1 else 's'}={self.vessel_identifiers.keys()}")
+
+        # IMO Validation (should be 7 digits)
+        for ref_code, imo in self.vessel_identifiers.items():
+            if not (1000000 <= imo <= 9999999):
+                raise ValueError(f"Invalid IMO {imo} for vessel {ref_code}. IMO must be 7 digits long.")
+
+        # Validate URLs
+        import re
+        url_pattern = re.compile(r'^https?://')
+        if not url_pattern.match(self.infinity_base_url):
+            raise ValueError("Infinity base URL must start with http:// or https://")
+        if not url_pattern.match(self.orca_base_url):
+            raise ValueError("ORCA base URL must start with http:// or https://")
         
         # ORCA validation
         if not self.orca_x_api_key:
@@ -201,6 +232,12 @@ class BridgeConfig:
         # Other settings
         logger.info(f"Sync: every {self.sync_interval_minutes}min | timezone={self.timezone}")
         logger.info(f"Logs: {self.log_level} | file={self.log_file.name}")
+
+        # Operation mode
+        mode = "DRY RUN" if self.dry_run else "LIVE MODE"
+        logger.info(f"Operation: {mode}")
+        if not self.dry_run:
+            logger.warning("⚠️  DRY_RUN=False - Real data will be posted to ORCA")
         
         logger.info("Configuration validated successfully")
 

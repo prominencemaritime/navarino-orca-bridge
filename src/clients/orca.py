@@ -1,8 +1,10 @@
 # src/clients/orca.py
 
 import requests
+import json
 import logging
 from typing import Dict, Any
+from src.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class ORCAClient:
         
         logger.info(f"Initialized ORCA client | url={self.base_url}")
     
+    @retry_with_backoff(max_retries=3, backoff_factor=2)
     def post_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         POST vessel data to ORCA API
@@ -62,21 +65,32 @@ class ORCAClient:
             logger.info(f"ORCA response | status={response.status_code}")
             
             # Handle different response codes
-            if response.status_code == 200:
-                logger.info("✓ Data saved successfully to ORCA")
-                return {"status": "success", "code": 200, "message": "Data saved"}
+            if response.status_code in [200, 201, 204]:
+                logger.info(f"[Status Code: {response.status_code}] ✓ Data saved successfully to ORCA")
+
+                # Parse JSON safely
+                try:
+                    return response.json() if response.text else {"status": "success", "code": response.status_code}
+                except json.JSONDecodeError:
+                    logger.warning("ORCA returned non-JSON response")
+                    return {"status": "success", "code": response.status_code, "raw": response.text}
             
             elif response.status_code == 403:
-                logger.error("ORCA authentication failed | Check x-api-key header")
+                logger.error("[Status Code: 403] ORCA authentication failed | Check x-api-key header")
                 response.raise_for_status()
             
             elif response.status_code == 404:
-                logger.error("ORCA vessel not found | Check IMO number")
+                logger.error("[Status Code: 404] ORCA vessel not found | Check IMO number")
                 response.raise_for_status()
             
             elif response.status_code == 422:
-                logger.error(f"ORCA invalid data | response={response.text}")
-                response.raise_for_status()
+                # Parse validation errors if available
+                try:
+                    error_detail = response.json()
+                    logger.error(f"[Status Code: 422] ORCA invalid data | errors={error_detail}")
+                except:
+                    logger.error(f"[Status Code: 422] ORCA invalid data | response={response.text}")
+                raise requests.exceptions.HTTPError(f"422 Unprocessable: {response.text}", response=response)
             
             else:
                 logger.warning(f"Unexpected ORCA response | status={response.status_code}")

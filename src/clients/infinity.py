@@ -1,8 +1,11 @@
 # src/clients/infinity.py
 
 import requests
+import time
+from functools import wraps
 import logging
 from typing import Optional
+from src.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,8 @@ class InfinityWebServiceClient:
         self.timeout = timeout
         
         logger.info(f"Initialized Infinity client | url={self.base_url}")
-    
+
+    @retry_with_backoff(max_retries=3, backoff_factor=2)
     def _make_soap_request(self, endpoint: str, soap_action: str, body: str) -> str:
         """
         Make SOAP request and return response text
@@ -50,7 +54,18 @@ class InfinityWebServiceClient:
         logger.debug(f"SOAP request | url={url} | action={soap_action}")
         
         try:
-            response = requests.post(url, data=body, headers=headers, timeout=self.timeout)
+            # Use tuple for (connect_timeout, read_timeout)
+            response = requests.post(
+                url, 
+                data=body, 
+                headers=headers, 
+                timeout=(10, self.timeout)
+            )
+            
+            # Log response before raising for debugging
+            if not response.ok:
+                logger.error(f"HTTP {response.status_code} | response_body={response.text[:500]}")
+            
             response.raise_for_status()
             
             logger.debug(f"SOAP response | status={response.status_code} | size={len(response.text)} bytes")
@@ -60,7 +75,7 @@ class InfinityWebServiceClient:
             logger.error(f"Request timeout after {self.timeout}s | url={url}")
             raise
         except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error {response.status_code} | url={url}")
+            logger.error(f"HTTP error {response.status_code} | url={url} | body={response.text[:200]}")
             raise
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error | url={url} | error={e}")
@@ -68,6 +83,7 @@ class InfinityWebServiceClient:
         except Exception as e:
             logger.error(f"Unexpected error | url={url} | error={e}")
             raise
+
     
     def get_live_position(self, vessel_ref_code: str) -> str:
         """
@@ -81,6 +97,8 @@ class InfinityWebServiceClient:
         """
         if not vessel_ref_code:
             raise ValueError("vessel_ref_code cannot be empty")
+
+        vessel_ref_code = vessel_ref_code.strip()
         
         logger.info(f"Fetching live position | vessel={vessel_ref_code}")
         
@@ -109,6 +127,8 @@ class InfinityWebServiceClient:
         """
         if not vessel_ref_code:
             raise ValueError("vessel_ref_code cannot be empty")
+
+        vessel_ref_code = vessel_ref_code.strip()
         
         logger.info(f"Fetching last history position | vessel={vessel_ref_code}")
         
@@ -137,7 +157,9 @@ class InfinityWebServiceClient:
         """
         if not vessel_ref_code:
             raise ValueError("vessel_ref_code cannot be empty")
-        
+
+        vessel_ref_code = vessel_ref_code.strip()
+
         logger.info(f"Fetching position history | vessel={vessel_ref_code}")
         
         endpoint = "/pub/ws/positionsws.php"

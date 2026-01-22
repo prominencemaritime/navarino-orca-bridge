@@ -46,7 +46,7 @@ def main():
     results = bridge.sync_all_vessels(
         vessel_identifiers=cfg.vessel_identifiers,
         sync_history=False,
-        dry_run=True
+        dry_run=cfg.dry_run
     )
     
     for result in results:
@@ -62,7 +62,7 @@ def main():
     results = bridge.sync_all_vessels(
         vessel_identifiers=cfg.vessel_identifiers,
         sync_history=True,
-        dry_run=True
+        dry_run=cfg.dry_run
     )
     
     for result in results:
@@ -71,13 +71,18 @@ def main():
         if result['status'] == 'dry_run':
             print(f"Would sync: {result['position_count']} position(s)")
     
-    print("\n" + "=" * 60)
-    print("✓ Bridge test complete!")
-    print("=" * 60)
-    print("\nWhen you get ORCA API key:")
-    print("1. Add ORCA_X_API_KEY to .env")
-    print("2. Run: python test_bridge.py  (with dry_run=False)")
-
+    if cfg.dry_run:
+        print("\n" + "=" * 60)
+        print("⚠️  Currently in DRY RUN mode")
+        print("=" * 60)
+        print("\nTo enable live posting:")
+        print("1. Set DRY_RUN=False in .env")
+        print("2. Ensure ORCA_X_API_KEY is set")
+        print("3. Run: python test_bridge.py")
+    else:
+        print("\n" + "=" * 60)
+        print("✓ Bridge test complete (LIVE MODE)")
+        print("=" * 60)
 
 if __name__ == "__main__":
     main()
