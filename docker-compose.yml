@@ -1,0 +1,44 @@
+services:
+  navarino-orca-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: navarino-orca-bridge
+    restart: unless-stopped
+    
+    environment:
+      # Load from .env file
+      - DRY_RUN=${DRY_RUN}
+      - INFINITY_BASE_URL=${INFINITY_BASE_URL}
+      - INFINITY_TOKEN=${INFINITY_TOKEN}
+      - VESSEL_REF_CODE=${VESSEL_REF_CODE}
+      - VESSEL_IMO=${VESSEL_IMO}
+      - ORCA_TEST=${ORCA_TEST}
+      - ORCA_BASE_URL_TEST=${ORCA_BASE_URL_TEST}
+      - ORCA_BASE_URL_LIVE=${ORCA_BASE_URL_LIVE}
+      - ORCA_X_API_KEY=${ORCA_X_API_KEY}
+      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES}
+      - SCHEDULE_FREQUENCY_HOURS=${SCHEDULE_FREQUENCY_HOURS}
+      - TIMEZONE=${TIMEZONE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
+      - DEBUG=${DEBUG:-False}
+      
+      # Email settings (optional - not used in bridge)
+      - ENABLE_EMAIL_ALERT=${ENABLE_EMAIL_ALERT:-False}
+    
+    volumes:
+      # Persist logs
+      - ./logs:/app/logs
+      # Persist state (for future use)
+      - ./state:/app/state
+    
+    networks:
+      - monitoring
+    
+    labels:
+      - "com.docker.healthcheck.description=Navarino ORCA Bridge Health"
+
+networks:
+  monitoring:
+    driver: bridge

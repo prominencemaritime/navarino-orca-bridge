@@ -103,7 +103,7 @@ class BridgeConfig:
             data_dir=data_dir,
 
             # Bridge Operation Mode
-            dry_run=config('DRY_RUN'),
+            dry_run=config('DRY_RUN', cast=bool),
 
             # Email Configuration
             smtp_host=smtp_host,

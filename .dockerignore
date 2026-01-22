@@ -1,17 +1,50 @@
-.env
+# Version control
 .git
 .gitignore
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-.venv
+env/
 venv/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Logs (will be mounted as volume)
 logs/
 *.log
-.DS_Store
-README.md
+
+# Data files (will be mounted as volume)
+data/
+state/
+
+# Test files (not needed in production)
+test_*.py
 tests/
-.pytest_cache
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Secrets
 secrets/
+
+.pytest_cache

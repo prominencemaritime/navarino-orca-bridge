@@ -41,7 +41,17 @@ def retry_with_backoff(
             
             for attempt in range(max_retries):
                 try:
-                    return func(*args, **kwargs)
+                    result = func(*args, **kwargs)
+                    
+                    # Log if this was a successful retry (not first attempt)
+                    if attempt > 0:
+                        logger.info(
+                            f"{func.__name__} | Attempt {attempt + 1}/{max_retries} succeeded "
+                            f"after {attempt} previous failure(s)"
+                        )
+
+                    return result
+
                 
                 except (requests.exceptions.Timeout, 
                         requests.exceptions.ConnectionError) as e:
