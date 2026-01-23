@@ -74,10 +74,6 @@ class BridgeConfig:
         logs_dir = project_root / 'logs'
         data_dir = project_root / 'data'
 
-        # Ensure directories exist
-        logs_dir.mkdir(exist_ok=True)
-        data_dir.mkdir(exist_ok=True)
-
         # Load email routing config if enabled
         enable_email_alert = config('ENABLE_EMAIL_ALERT', default=False, cast=bool)
 
@@ -181,6 +177,10 @@ class BridgeConfig:
         """Validate configuration values"""
         logger.info("Validating configuration...")
         
+        # Ensure directories exist
+        self.logs_dir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(exist_ok=True)
+
         # Email validation
         if self.enable_email_alert:
             if not self.email_routing['to']:
@@ -240,21 +240,3 @@ class BridgeConfig:
             logger.warning("⚠️  DRY_RUN=False - Real data will be posted to ORCA")
         
         logger.info("Configuration validated successfully")
-
-
-# Singleton instance
-_config_instance: Optional[BridgeConfig] = None
-
-
-def get_config() -> BridgeConfig:
-    """Get or create singleton configuration instance"""
-    global _config_instance
-    if _config_instance is None:
-        _config_instance = BridgeConfig.from_env()
-
-        # Setup logging before validation
-        from config.logging_config import setup_logging
-        setup_logging(_config_instance.log_file, _config_instance.log_level)
-
-        _config_instance.validate()
-    return _config_instance

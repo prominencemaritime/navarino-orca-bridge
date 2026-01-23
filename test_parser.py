@@ -1,11 +1,9 @@
-# test_parser.py
-
 #!/usr/bin/env python3
 """Test Infinity parser with actual XML files"""
 
 import json
 from pathlib import Path
-from config.settings import get_config
+from src.app import initialise_app
 from src.parsers.infinity_parser import InfinityParser
 from src.transformers.orca_formatter import ORCAFormatter
 
@@ -15,22 +13,22 @@ def main():
     print("Testing Infinity Parser & ORCA Formatter")
     print("=" * 60)
     
-    # Load config
-    cfg = get_config()
+    # Initialise application
+    ctx = initialise_app()
     
-    # Initialize parser
+    # Initialise parser
     parser = InfinityParser()
     
     # Test each vessel
-    for vessel_ref_code, imo in cfg.vessel_identifiers.items():
+    for vessel_ref_code, imo in ctx.config.vessel_identifiers.items():
         print(f"\n{'='*60}")
         print(f"Processing vessel: {vessel_ref_code} (IMO: {imo})")
         print('='*60)
         
         # File paths
-        live_file = cfg.data_dir / f"{vessel_ref_code}_live_position.xml"
-        history_file = cfg.data_dir / f"{vessel_ref_code}_history_positions.xml"
-        interface_file = cfg.data_dir / f"{vessel_ref_code}_interface.xml"
+        live_file = ctx.config.data_dir / f"{vessel_ref_code}_live_position.xml"
+        history_file = ctx.config.data_dir / f"{vessel_ref_code}_history_positions.xml"
+        interface_file = ctx.config.data_dir / f"{vessel_ref_code}_interface.xml"
         
         # Parse live position
         print("\n1. Parsing live position...")
@@ -85,7 +83,7 @@ def main():
             print("   " + "-" * 56)
             
             # Save to file
-            live_json_file = cfg.data_dir / f"{vessel_ref_code}_orca_live.json"
+            live_json_file = ctx.config.data_dir / f"{vessel_ref_code}_orca_live.json"
             with open(live_json_file, 'w') as f:
                 json.dump(orca_live, f, indent=2)
             print(f"\n   Saved to: {live_json_file.name}")
@@ -102,7 +100,7 @@ def main():
             print(f"   ✓ ORCA format created with {len(orca_history['data'][0]['values'])} positions")
             
             # Save to file
-            history_json_file = cfg.data_dir / f"{vessel_ref_code}_orca_history.json"
+            history_json_file = ctx.config.data_dir / f"{vessel_ref_code}_orca_history.json"
             with open(history_json_file, 'w') as f:
                 json.dump(orca_history, f, indent=2)
             print(f"   Saved to: {history_json_file.name}")
@@ -116,7 +114,7 @@ def main():
     print("\n" + "=" * 60)
     print("✓ Parser test complete!")
     print("=" * 60)
-    print(f"\nJSON files saved to: {cfg.data_dir}")
+    print(f"\nJSON files saved to: {ctx.config.data_dir}")
     print("\nNext step: Build ORCA client to POST this data")
 
 

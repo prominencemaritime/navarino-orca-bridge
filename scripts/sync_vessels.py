@@ -1,65 +1,45 @@
 #!/usr/bin/env python3
-"""Production vessel sync script"""
+"""Manual sync script"""
 
 import sys
-from config.settings import get_config
-from src.clients.infinity import InfinityWebServiceClient
-from src.clients.orca import ORCAClient
-from src.bridge import InfinityORCABridge
+from src.app import initialise_app
 
 
 def main():
-    # Load config
-    cfg = get_config()
+    # Initialise app (loads config and sets up logging)
+    ctx = initialise_app()
     
     # Safety check
-    if not cfg.dry_run and cfg.orca_test:
+    if not ctx.config.dry_run and ctx.config.orca_test:
         print("⚠️  WARNING: DRY_RUN=False but ORCA_TEST=True")
-        print("You're about to POST to ORCA TEST environment.")
-        response = input("Continue? (yes/no): ")
+        response = input("Continue? (yes/no): ").strip().lower()
         if response.lower() != 'yes':
             print("Aborted.")
             return 1
     
-    if not cfg.dry_run and not cfg.orca_test:
-        print("⚠️  CRITICAL WARNING: DRY_RUN=False and ORCA_TEST=False")
-        print("You're about to POST to ORCA PRODUCTION environment.")
-        print("This will affect LIVE data!")
-        response = input("Type 'CONFIRM' to proceed: ")
-        if response != 'CONFIRM':
+    if not ctx.config.dry_run and not ctx.config.orca_test:
+        print("⚠️  WARNING: DRY_RUN=False but ORCA_TEST=False")
+        print("-> Posting to PRODUCTION")
+        response = input("Type 'CONFIRM': ").strip().lower()
+        if response != 'confirm':
             print("Aborted.")
             return 1
     
-    # Initialize clients
-    infinity = InfinityWebServiceClient(
-        base_url=cfg.infinity_base_url,
-        token=cfg.infinity_token,
-        timeout=cfg.request_timeout
-    )
-    
-    orca = ORCAClient(
-        base_url=cfg.orca_base_url,
-        api_key=cfg.orca_x_api_key,
-        timeout=cfg.request_timeout
-    )
-    
-    # Initialize bridge
-    bridge = InfinityORCABridge(infinity, orca)
-    
-    # Sync all vessels (live positions)
-    print(f"\nSyncing {len(cfg.vessel_identifiers)} vessel(s)...")
-    results = bridge.sync_all_vessels(
-        vessel_identifiers=cfg.vessel_identifiers,
+    # Sync vessels
+    number_of_vessels = len(ctx.config.vessel_identifiers)
+    print(f"\nSyncing {number_of_vessels} vessel{'' if number_of_vessels==1 else 's'}")
+    results = ctx.bridge.sync_all_vessels(
+        vessel_identifiers=ctx.config.vessel_identifiers,
         sync_history=False,
-        dry_run=cfg.dry_run
+        dry_run=ctx.config.dry_run
     )
     
     # Check for errors
     errors = [r for r in results if r['status'] == 'error']
     if errors:
-        print(f"\n⚠️  {len(errors)} vessel(s) failed to sync")
+        print(f"\n⚠️  {len(errors)} vessel{'' if len(errors)==1 else 's'} failed to sync")
         for err in errors:
-            print(f"  - {err['vessel']}: {err.get('error', 'Unknown error')}")
+            print(f"  - {err['vessel']}: {err.get('error')}")
         return 1
     
     print("\n✓ All vessels synced successfully")

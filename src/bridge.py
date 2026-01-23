@@ -2,7 +2,10 @@
 
 import logging
 from typing import List, Dict, Any
-from config.settings import get_config
+from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from src.clients.infinity import InfinityWebServiceClient
 from src.clients.orca import ORCAClient
 from src.parsers.infinity_parser import InfinityParser
@@ -17,21 +20,67 @@ class InfinityORCABridge:
     def __init__(
         self,
         infinity_client: InfinityWebServiceClient,
-        orca_client: ORCAClient
+        orca_client: ORCAClient,
+        timezone: str="UTC",
+        logs_dir: Path=None
     ):
         """
-        Initialize the bridge
+        Initialise the bridge
         
         Args:
-            infinity_client: Initialized Infinity client
-            orca_client: Initialized ORCA client
+            infinity_client: Initialised Infinity client
+            orca_client: Initialised ORCA client
+            timezone: Timezone for health status timestamps
+            logs_dir: Directory for logs and health status file
         """
         self.infinity = infinity_client
         self.orca = orca_client
         self.parser = InfinityParser()
+        self.timezone = timezone
         
-        logger.info("Bridge initialized")
-    
+        # Set logs directory (default to /app/logs for Docker)
+        if logs_dir is None:
+            logs_dir = Path("/app/logs")
+        self.logs_dir = logs_dir
+        
+        logger.info("Bridge initialised")
+
+
+    def _write_health_status(self, status: str, error_msg: str="") -> None:
+        """
+        Write health status to file for Docker healthcheck monitoring.
+
+        Args:
+            status: "OK" or "ERROR"
+            error_msg: Error message if status is ERROR
+        """
+        try:
+            health_file = self.logs_dir / "health_status.txt"
+
+            # Create directory if it does not exist
+            health_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get timezone-aware timestamp
+            now = datetime.now(tz=ZoneInfo(self.timezone))
+
+            # Write automatically using a temporary file
+            temp_file = health_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
+                f.write(f"{status} {now.isoformat()}\n")
+                f.write(f"ALERT_TYPE: Navarino API - ORCA Endpoint Sync\n")
+                f.write(f"TIMEZONE: {self.timezone}\n")
+                if error_msg:
+                    f.write(f"ERROR_MSG: {error_msg}\n")
+
+            # Atomic rename (prevents healthcheck from reading partially written file)
+            temp_file.replace(health_file)
+
+            logger.debug(f"health status written: {status}")
+
+        except Exception as e:
+            logger.error(f"Failed to write health status: {e}")
+
+
     def sync_vessel_live(
         self,
         vessel_ref_code: str,
@@ -50,6 +99,10 @@ class InfinityORCABridge:
             Dict with sync results
         """
         logger.info(f"Starting live sync | vessel={vessel_ref_code} | imo={imo} | dry_run={dry_run}")
+
+        # Initialise health status as ERROR in case of early exception
+        error_occurred = False
+        error_message = ""
         
         try:
             # Step 1: Fetch live position from Infinity
@@ -114,6 +167,8 @@ class InfinityORCABridge:
         
         except Exception as e:
             logger.error(f"Failed to sync vessel {vessel_ref_code} | error={e}")
+            error_message = f"Failed to sync {vessel_ref_code}: {str(e)}"
+            error_occurred = True
             return {
                 "status": "error",
                 "vessel": vessel_ref_code,
@@ -223,17 +278,13 @@ class InfinityORCABridge:
         Returns:
             List of sync results for each vessel
         """
-        # Safety check: if dry_run is False but config says dry_run, warn
-        cfg = get_config()
-        
-        if not dry_run and cfg.dry_run:
-            logger.warning("Method called with dry_run=False but config has DRY_RUN=True")
-            logger.warning("Using config value (DRY_RUN=True) for safety")
-            dry_run = True
-
         logger.info(f"Starting batch sync | vessels={len(vessel_identifiers)} | history={sync_history} | dry_run={dry_run}")
         
         results = []
+
+        # Track if any errors occurred
+        any_errors = False
+        error_messages = []
         
         for vessel_ref_code, imo in vessel_identifiers.items():
             logger.info(f"Processing vessel {vessel_ref_code}...")
@@ -244,17 +295,36 @@ class InfinityORCABridge:
                 result = self.sync_vessel_live(vessel_ref_code, imo, dry_run)
             
             results.append(result)
+
+            # Check for errors
+            if result['status'] == 'error':
+                any_errors = True
+                error_msg = result.get('error', 'Unknown error')
+                error_messages.append(f"{vessel_ref_code}: {error_msg}")
         
         # Summary
-        success_count = sum(1 for r in results if r['status'] == 'success')
+        success_count = sum(1 for r in results if r['status'] in ['success', 'dry_run'])
         error_count = sum(1 for r in results if r['status'] == 'error')
+        total_count = len(results)
         
-        logger.info("="*60)
+        logger.info("=" * 70)
         logger.info("BATCH SYNC SUMMARY")
-        logger.info("="*60)
-        logger.info(f"Total vessels: {len(results)}")
-        logger.info(f"Successful: {success_count}")
-        logger.info(f"Errors: {error_count}")
-        logger.info("="*60)
+        logger.info("=" * 70)
+        logger.info(f"Total vessels: {total_count}")
+        logger.info(f"Successful: {success_count}/{total_count}")
+        logger.info(f"Errors: {error_count}/{total_count}")
+        logger.info("=" * 70)
+
+        # Write health status based on results
+        if any_errors:
+            combined_error = "; ".join(error_messages[:3])  # Limit to first 3 errors
+            if len(error_messages) > 3:
+                combined_error += f" (and {len(error_messages) - 3} more)"
+
+            logger.warning(f"Writing ERROR health status: {combined_error}")
+            self._write_health_status("ERROR", combined_error)
+        else:
+            logger.info("Writing OK health status")
+            self._write_health_status("OK")
         
         return results
