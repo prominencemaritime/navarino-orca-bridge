@@ -125,12 +125,6 @@ ORCA_X_API_KEY=your_orca_api_key_here
 
 # Optional: Email alerts (leave empty to disable)
 ENABLE_EMAIL_ALERT=False
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-TO_RECIPIENTS=recipient@example.com
-CC_RECIPIENTS=
 
 # Scheduling
 SYNC_INTERVAL_MINUTES=5
@@ -417,7 +411,7 @@ pip install -r requirements.txt
 - [ ] Test with `dry_run=True` first
 - [ ] Monitor logs during first live sync
 - [ ] Set up automated scheduling (cron/systemd)
-- [ ] Configure email alerts for errors
+- [x] Health monitoring configured (via Docker Health Monitor)
 
 ### Future Enhancements
 

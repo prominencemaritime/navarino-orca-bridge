@@ -19,14 +19,6 @@ class BridgeConfig:
     # Bridge Operation Mode
     dry_run: bool
 
-    # Email settings
-    #smtp_host: str
-    #smtp_port: int
-    #smtp_user: str
-    #smtp_pass: str
-    enable_email_alert: bool
-    email_routing: Dict[str, List[str]]
-
     # Infinity Web Services
     infinity_base_url: str
     infinity_token: str
@@ -74,22 +66,6 @@ class BridgeConfig:
         logs_dir = project_root / 'logs'
         data_dir = project_root / 'data'
 
-        # Load email routing config if enabled
-        enable_email_alert = config('ENABLE_EMAIL_ALERT', default=False, cast=bool)
-
-        if enable_email_alert:
-            email_routing = cls._load_email_routing()
-            smtp_host = config('SMTP_HOST')
-            smtp_port = config('SMTP_PORT', default=465, cast=int)
-            smtp_user = config('SMTP_USER')
-            smtp_pass = config('SMTP_PASS')
-        else:
-            email_routing = {'to': [], 'cc': []}
-            smtp_host = config('SMTP_HOST', default='')
-            smtp_port = config('SMTP_PORT', default=465, cast=int)
-            smtp_user = config('SMTP_USER', default='')
-            smtp_pass = config('SMTP_PASS', default='')
-
         # Parse vessel ref codes and imos
         vessel_identifiers = cls._load_vessel_identifiers()
 
@@ -101,14 +77,6 @@ class BridgeConfig:
 
             # Bridge Operation Mode
             dry_run=config('DRY_RUN', cast=bool),
-
-            # Email Configuration
-            smtp_host=smtp_host,
-            smtp_port=smtp_port,
-            smtp_user=smtp_user,
-            smtp_pass=smtp_pass,
-            enable_email_alert=enable_email_alert,
-            email_routing=email_routing,    # {'to': [...], 'cc': [...]}
 
             # Infinity Web Services
             infinity_base_url=config('INFINITY_BASE_URL'),
@@ -132,23 +100,6 @@ class BridgeConfig:
             debug=config('DEBUG', default=False, cast=bool)
         )
 
-
-    @staticmethod
-    def _parse_email_list(env_var: str) -> List[str]:
-        """Parse comma-separated email list from environment variable."""
-        email_string = config(env_var, default='')
-        if not email_string:
-            return []
-        return [email.strip() for email in config(env_var, default='').split(',') if email.strip()]
-
-
-    @staticmethod
-    def _load_email_routing() -> Dict[str, List[str]]:
-        """Load and parse email routing from environment"""
-        return {
-            'to': BridgeConfig._parse_email_list('TO_RECIPIENTS'),
-            'cc': BridgeConfig._parse_email_list('CC_RECIPIENTS')
-        }
 
     @staticmethod
     def _parse_csv_env_entry(env_var: str) -> List[str]:
@@ -182,18 +133,6 @@ class BridgeConfig:
         self.logs_dir.mkdir(exist_ok=True)
         self.data_dir.mkdir(exist_ok=True)
 
-        # Email validation
-        if self.enable_email_alert:
-            if not self.email_routing['to']:
-                logger.error("Email alerts enabled but TO_RECIPIENTS missing")
-                raise ValueError("Email alerts enabled but TO_RECIPIENTS missing")
-            if not self.smtp_host or not self.smtp_user or not self.smtp_pass:
-                logger.error("Email alerts enabled but SMTP credentials incomplete")
-                raise ValueError("Email alerts enabled but SMTP credentials incomplete")
-            logger.info(f"Email: {len(self.email_routing['to'])} TO, {len(self.email_routing['cc'])} CC | {self.smtp_host}:{self.smtp_port}")
-        else:
-            logger.info("Email: disabled")
-        
         # Infinity validation
         if not self.infinity_base_url or not self.infinity_token:
             logger.error("Infinity credentials incomplete")
