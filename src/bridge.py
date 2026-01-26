@@ -67,7 +67,7 @@ class InfinityORCABridge:
             temp_file = health_file.with_suffix('.tmp')
             with open(temp_file, 'w') as f:
                 f.write(f"{status} {now.isoformat()}\n")
-                f.write(f"ALERT_TYPE: Navarino API - ORCA Endpoint Sync\n")
+                f.write(f"ALERT_TYPE: VesselSync\n")
                 f.write(f"TIMEZONE: {self.timezone}\n")
                 if error_msg:
                     f.write(f"ERROR_MSG: {error_msg}\n")

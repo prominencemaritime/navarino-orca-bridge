@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Production scheduler for Navarino ORCA Bridge.
-Initializes once, runs continuously, handles shutdown gracefully.
+Initialises once, runs continuously, handles shutdown gracefully.
 """
 
 import sys
@@ -81,7 +81,7 @@ def create_sync_job(ctx: AppContext):
                 # Simple, direct write - no complex recovery
                 with open(health_file, 'w') as f:
                     f.write(f"ERROR {now.isoformat()}\n")
-                    f.write(f"ALERT_TYPE: Navarino API - ORCA Endpoint Sync\n")
+                    f.write(f"ALERT_TYPE: VesselSync\n")
                     f.write(f"TIMEZONE: {ctx.config.timezone}\n")
                     f.write(f"ERROR_MSG: Scheduler exception: {str(e)}\n")
 
@@ -159,14 +159,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
