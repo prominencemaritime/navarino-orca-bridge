@@ -20,10 +20,10 @@ class BridgeConfig:
     dry_run: bool
 
     # Email settings
-    smtp_host: str
-    smtp_port: int
-    smtp_user: str
-    smtp_pass: str
+    #smtp_host: str
+    #smtp_port: int
+    #smtp_user: str
+    #smtp_pass: str
     enable_email_alert: bool
     email_routing: Dict[str, List[str]]
 
@@ -74,21 +74,21 @@ class BridgeConfig:
         logs_dir = project_root / 'logs'
         data_dir = project_root / 'data'
 
-        # Load email routing config if enabled
+        # Load email routing config if enabled
         enable_email_alert = config('ENABLE_EMAIL_ALERT', default=False, cast=bool)
 
         if enable_email_alert:
             email_routing = cls._load_email_routing()
-            smtp_host=config('SMTP_HOST')
-            smtp_port=config('SMTP_PORT', default=465, cast=int)
-            smtp_user=config('SMTP_USER')
-            smtp_pass=config('SMTP_PASS')
+            smtp_host = config('SMTP_HOST')
+            smtp_port = config('SMTP_PORT', default=465, cast=int)
+            smtp_user = config('SMTP_USER')
+            smtp_pass = config('SMTP_PASS')
         else:
             email_routing = {'to': [], 'cc': []}
-            smtp_host = ''
-            smtp_user = ''
-            smtp_pass = ''
-            smtp_port = 465
+            smtp_host = config('SMTP_HOST', default='')
+            smtp_port = config('SMTP_PORT', default=465, cast=int)
+            smtp_user = config('SMTP_USER', default='')
+            smtp_pass = config('SMTP_PASS', default='')
 
         # Parse vessel ref codes and imos
         vessel_identifiers = cls._load_vessel_identifiers()
