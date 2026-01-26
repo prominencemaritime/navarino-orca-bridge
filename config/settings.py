@@ -85,9 +85,10 @@ class BridgeConfig:
             smtp_pass=config('SMTP_PASS')
         else:
             email_routing = {'to': [], 'cc': []}
-            smtp_host = smtp_user = smtp_pass = ''
+            smtp_host = ''
+            smtp_user = ''
+            smtp_pass = ''
             smtp_port = 465
-
 
         # Parse vessel ref codes and imos
         vessel_identifiers = cls._load_vessel_identifiers()
