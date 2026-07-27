@@ -2,6 +2,8 @@
 
 import logging
 from typing import Dict, List, Any, Optional
+from datetime import datetime, timezone
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class ORCAFormatter:
                 continue
             
             value = {
-                'timestamp': pos['timestamp'],
+                'timestamp': ORCAFormatter._format_timestamp(pos['timestamp']),
                 'lat': pos['lat'],
                 'lon': pos['lon']
             }
@@ -47,17 +49,13 @@ class ORCAFormatter:
                 value['course'] = pos['course']
             
             if pos.get('speed_og') is not None:
-                value['speed_og'] = pos['speed_og']
-            
-            # Add internet connection status if available
-            if internet_connection_status:
-                value['internet_connection_status'] = internet_connection_status
+                value['speed'] = round(pos['speed_og'], 3)
             
             values.append(value)
         
         result = {
             "data": [{
-                "imo": imo,
+                "imo": str(imo),
                 "values": values
             }]
         }
@@ -89,3 +87,10 @@ class ORCAFormatter:
             all_data.extend(formatted['data'])
         
         return {"data": all_data}
+
+    @staticmethod
+    def _format_timestamp(ts: str) -> str:
+        """Convert ISO 8601 to ORCA format: 'yyyy-mm-dd HH:MM:SS'"""
+        dt = datetime.fromisoformat(ts)
+        dt_utc = dt.astimezone(timezone.utc)
+        return dt_utc.strftime('%Y-%m-%d %H:%M:%S')

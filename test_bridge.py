@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Test Infinity-ORCA Bridge"""
+import json
 
 from src.app import initialise_app
 
@@ -30,6 +31,8 @@ def main():
         print(f"Status: {result['status']}")
         if result['status'] == 'dry_run':
             print(f"Would sync: {len(result['data']['data'][0]['values'])} value(s)")
+            print("\nFull payload preview:")
+            print(json.dumps(result['data'], indent=2))
     
     print("\n" + "=" * 60)
     print("Test 2: Sync History (Dry Run)")

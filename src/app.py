@@ -64,6 +64,8 @@ def initialise_app() -> AppContext:
     orca_client = ORCAClient(
         base_url=config.orca_base_url,
         api_key=config.orca_x_api_key,
+        x_source=config.orca_x_source,
+        x_organization=config.orca_x_organization,
         timeout=config.request_timeout
     )
 

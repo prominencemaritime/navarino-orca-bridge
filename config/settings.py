@@ -29,6 +29,8 @@ class BridgeConfig:
     orca_base_url_test: str
     orca_base_url_live: str
     orca_x_api_key: str
+    orca_x_source: str
+    orca_x_organization: str
 
     # Scheduling
     sync_interval_minutes: int
@@ -76,7 +78,7 @@ class BridgeConfig:
             data_dir=data_dir,
 
             # Bridge Operation Mode
-            dry_run=config('DRY_RUN', cast=bool),
+            dry_run=config('DRY_RUN', cast=bool, default=True),
 
             # Infinity Web Services
             infinity_base_url=config('INFINITY_BASE_URL'),
@@ -88,6 +90,8 @@ class BridgeConfig:
             orca_base_url_test=config('ORCA_BASE_URL_TEST'),
             orca_base_url_live=config('ORCA_BASE_URL_LIVE'),
             orca_x_api_key=config('ORCA_X_API_KEY'),
+            orca_x_source=config('ORCA_X_SOURCE'),
+            orca_x_organization=config('ORCA_X_ORGANIZATION'),
 
             # Scheduling
             sync_interval_minutes=int(config('SYNC_INTERVAL_MINUTES', default=5)),

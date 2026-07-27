@@ -10,7 +10,7 @@ def setup_logging(log_file: Path, log_level: str = "INFO") -> None:
     
     # Create formatter with filename
     formatter = logging.Formatter(
-        fmt='%(asctime)s | %(levelname)-4s | %(filename)s:%(lineno)-4d | %(message)s',
+        fmt='%(asctime)s | %(levelname)-8s | %(filename)s:%(lineno)-4d | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
@@ -18,6 +18,8 @@ def setup_logging(log_file: Path, log_level: str = "INFO") -> None:
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
+
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     
     # File handler
     file_handler = logging.FileHandler(log_file, encoding='utf-8')

@@ -47,3 +47,4 @@ __pycache__/
 secrets/
 secrets.env
 
+.python-version

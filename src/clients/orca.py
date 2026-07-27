@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ORCAClient:
     """Client for ORCA Vessel Tracking Service API"""
     
-    def __init__(self, base_url: str, api_key: str, timeout: int = 30):
+    def __init__(self, base_url: str, api_key: str, x_source: str, x_organization: str, timeout: int = 30):
         """
         Initialize ORCA API client
         
@@ -24,6 +24,8 @@ class ORCAClient:
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
         self.timeout = timeout
+        self.x_source = x_source
+        self.x_organization = x_organization
         
         logger.info(f"Initialized ORCA client | url={self.base_url}")
     
@@ -44,7 +46,9 @@ class ORCAClient:
         url = f"{self.base_url}/data"
         headers = {
             "Content-Type": "application/json",
-            "x-api-key": self.api_key
+            "X-API-KEY": self.api_key,
+            "X-Source": self.x_source,
+            "X-Organization": self.x_organization
         }
         
         # Count vessels and values for logging
@@ -128,7 +132,10 @@ class ORCAClient:
         """
         url = f"{self.base_url}/data"
         headers = {
-            "x-api-key": self.api_key
+            "Content-Type": "application/json",
+            "X-API-KEY": self.api_key,
+            "X-Source": self.x_source,
+            "X-Organization": self.x_organization
         }
         params = {
             "imo": imo,
