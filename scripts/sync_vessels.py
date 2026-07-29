@@ -26,10 +26,10 @@ def main():
             return 1
     
     # Sync vessels
-    number_of_vessels = len(ctx.config.vessel_identifiers)
+    number_of_vessels = len(ctx.config.vessels)
     print(f"\nSyncing {number_of_vessels} vessel{'' if number_of_vessels==1 else 's'}")
     results = ctx.bridge.sync_all_vessels(
-        vessel_identifiers=ctx.config.vessel_identifiers,
+        vessels=ctx.config.vessels,
         sync_history=False,
         dry_run=ctx.config.dry_run
     )

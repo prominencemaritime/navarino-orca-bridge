@@ -1,0 +1,14 @@
+# Vessel configuration for Infinity-ORCA Bridge
+# Copy this file to vessels.yaml and fill in real values
+# vessels.yaml is gitignored -- never commit it
+
+vessels:
+  - ref_code: vessel1
+    imo: "1234567"
+    infinity_base_url: https://node1.infinityfleet.net
+    infinity_token: token_for_vessel1
+
+  - ref_code: vessel2
+    imo: "7654321"
+    infinity_base_url: https://node2.infinityfleet.net
+    infinity_token: token_for_vessel2

@@ -3,9 +3,10 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict
 
-from config.settings import BridgeConfig
+
+from config.settings import BridgeConfig, VesselConfig
 from config.logging_config import setup_logging
 from src.clients.infinity import InfinityWebServiceClient
 from src.clients.orca import ORCAClient
@@ -23,7 +24,7 @@ class AppContext:
     Thread-safe because it is immutable after construction.
     """
     config: BridgeConfig
-    infinity_client: InfinityWebServiceClient
+    infinity_clients: Dict[str, InfinityWebServiceClient]
     orca_client: ORCAClient
     bridge: InfinityORCABridge
 
@@ -55,11 +56,14 @@ def initialise_app() -> AppContext:
     # Step 4: Initialise clients (once, reused across all jobs)
     logger.info("Initialising API clients")
 
-    infinity_client = InfinityWebServiceClient(
-        base_url=config.infinity_base_url,
-        token=config.infinity_token,
-        timeout=config.request_timeout
-    )
+    infinity_clients = {
+        vessel.ref_code: InfinityWebServiceClient(
+            base_url=vessel.infinity_base_url,
+            token=vessel.infinity_token,
+            timeout=config.request_timeout
+        )
+        for vessel in config.vessels
+    }
 
     orca_client = ORCAClient(
         base_url=config.orca_base_url,
@@ -71,7 +75,7 @@ def initialise_app() -> AppContext:
 
     # Step 5: Initialise bridge
     bridge = InfinityORCABridge(
-            infinity_client,
+            infinity_clients,
             orca_client,
             timezone=config.timezone,
             logs_dir=config.logs_dir
@@ -81,7 +85,7 @@ def initialise_app() -> AppContext:
 
     return AppContext(
         config=config,
-        infinity_client=infinity_client,
+        infinity_clients=infinity_clients,
         orca_client=orca_client,
         bridge=bridge
     )

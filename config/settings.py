@@ -5,8 +5,19 @@ from typing import Optional, List, Dict
 from decouple import config
 from pathlib import Path
 import logging
+import yaml
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class VesselConfig:
+
+    # Vessel identifiers
+    ref_code: str
+    imo: str
+    infinity_base_url: str
+    infinity_token: str
+
 
 @dataclass
 class BridgeConfig:
@@ -20,9 +31,7 @@ class BridgeConfig:
     dry_run: bool
 
     # Infinity Web Services
-    infinity_base_url: str
-    infinity_token: str
-    vessel_identifiers: Dict[str, int]
+    vessels: List[VesselConfig]
 
     # ORCA API
     orca_test: bool
@@ -68,9 +77,6 @@ class BridgeConfig:
         logs_dir = project_root / 'logs'
         data_dir = project_root / 'data'
 
-        # Parse vessel ref codes and imos
-        vessel_identifiers = cls._load_vessel_identifiers()
-
         return cls(
             # Project Directories
             project_root=project_root,
@@ -80,10 +86,8 @@ class BridgeConfig:
             # Bridge Operation Mode
             dry_run=config('DRY_RUN', cast=bool, default=True),
 
-            # Infinity Web Services
-            infinity_base_url=config('INFINITY_BASE_URL'),
-            infinity_token=config('INFINITY_TOKEN'),
-            vessel_identifiers=vessel_identifiers,  # {'vessel_ref_code': 'vessel_IMO', }
+            # This replaces the Infinity extractions
+            vessels=cls._load_vessels_from_yaml(project_root / 'vessels.yaml'),
 
             # ORCA API
             orca_test=config('ORCA_TEST', default=True, cast=bool),
@@ -104,29 +108,27 @@ class BridgeConfig:
             debug=config('DEBUG', default=False, cast=bool)
         )
 
-
-    @staticmethod
-    def _parse_csv_env_entry(env_var: str) -> List[str]:
-        """Parse comma-separated entry list from environment variable."""
-        return [entry.strip() for entry in config(env_var).split(',') if entry.strip()]
-
-    @staticmethod
-    def _load_vessel_identifiers() -> Dict[str, int]:
-        """Load vessel ref code to IMO Dict
-
-        Returns dict:
-            {
-                'mountfu': 9509011,
-                'other_vessel_ref_code': other_vessel_IMO,
-                ...
-            }
-        """
-        keys = BridgeConfig._parse_csv_env_entry('VESSEL_REF_CODE')
-        values = BridgeConfig._parse_csv_env_entry('VESSEL_IMO')
-        if len(keys) != len(values):
-            logger.error("VESSEL_REF_CODE and VESSEL_IMO entries in .env have a different number of entries.")
-            raise ValueError("There should be one vessel_ref_code for each IMO number, but the number of entries do not match.")
-        return {key: int(value) for key, value in zip(keys, values)}
+    @classmethod
+    def _load_vessels_from_yaml(cls, yaml_path: Path) -> List['VesselConfig']:
+        """Load vessel configuration from vessels.yaml"""
+        if not yaml_path.exists():
+            raise FileNotFoundError(
+                f"Vessel config file not found: {yaml_path}\n"
+                f"Copy vessels.yaml.example to vessels.yaml and fill in your credentials."
+            )
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+        vessels = []
+        for v in data.get('vessels', []):
+            vessels.append(VesselConfig(
+                ref_code=v['ref_code'],
+                imo=str(v['imo']),
+                infinity_base_url=v['infinity_base_url'],
+                infinity_token=v['infinity_token']
+            ))
+        if not vessels:
+            raise ValueError("No vessels defined in vessels.yaml")
+        return vessels
 
 
     def validate(self) -> None:
@@ -138,21 +140,19 @@ class BridgeConfig:
         self.data_dir.mkdir(exist_ok=True)
 
         # Infinity validation
-        if not self.infinity_base_url or not self.infinity_token:
-            logger.error("Infinity credentials incomplete")
-            raise ValueError("Infinity credentials incomplete")
-        logger.info(f"Infinity: {self.infinity_base_url} | vessel{'' if len(self.vessel_identifiers)==1 else 's'}={self.vessel_identifiers.keys()}")
+        for vessel in self.vessels:
+            if not vessel.infinity_base_url or not vessel.infinity_token:
+                raise ValueError(f"Infinity credentials incomplete for vessel {vessel.ref_code}")
+            if not (vessel.imo.isdigit() and len(vessel.imo) == 7):
+                raise ValueError(f"Invalid IMO {vessel.imo} for vessel {vessel.ref_code}. IMO must be 7 digits.")
 
-        # IMO Validation (should be 7 digits)
-        for ref_code, imo in self.vessel_identifiers.items():
-            if not (1000000 <= imo <= 9999999):
-                raise ValueError(f"Invalid IMO {imo} for vessel {ref_code}. IMO must be 7 digits long.")
+        vessel_count = len(self.vessels)
+        ref_codes = [v.ref_code for v in self.vessels]
+        logger.info(f"Vessels: {vessel_count} configured | {ref_codes}")
 
         # Validate URLs
         import re
         url_pattern = re.compile(r'^https?://')
-        if not url_pattern.match(self.infinity_base_url):
-            raise ValueError("Infinity base URL must start with http:// or https://")
         if not url_pattern.match(self.orca_base_url):
             raise ValueError("ORCA base URL must start with http:// or https://")
         

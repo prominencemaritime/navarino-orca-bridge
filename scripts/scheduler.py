@@ -47,13 +47,13 @@ def create_sync_job(ctx: AppContext):
             logger.info("=" * 70)
             logger.info("▶ SCHEDULED SYNC STARTED")
             logger.info(f"Time: {datetime.now(tz=ZoneInfo(ctx.config.timezone)).isoformat()}")
-            logger.info(f"Vessels: {list(ctx.config.vessel_identifiers.keys())}")
+            logger.info(f"Vessels: {[v.ref_code for v in ctx.config.vessels]}")
             logger.info(f"Mode: {'DRY_RUN' if ctx.config.dry_run else 'LIVE'}")
             logger.info("=" * 70)
 
             # Sync all vessels - bridge writes health status
             results = ctx.bridge.sync_all_vessels(
-                vessel_identifiers=ctx.config.vessel_identifiers,
+                vessels=ctx.config.vessels,
                 sync_history=False,
                 dry_run=ctx.config.dry_run
             )
@@ -122,7 +122,7 @@ def main():
     # Step 2: Display configuration
     logger.info(f"Sync interval: {ctx.config.sync_interval_minutes} minutes")
     logger.info(f"Timezone: {ctx.config.timezone}")
-    logger.info(f"Vessels: {list(ctx.config.vessel_identifiers.keys())}")
+    logger.info(f"Vessels: {[v.ref_code for v in ctx.config.vessels]}")
     logger.info(f"Mode: {'DRY RUN' if ctx.config.dry_run else 'LIVE'}")
     logger.info(f"ORCA: {'TEST' if ctx.config.orca_test else 'LIVE'} environment")
     logger.info("=" * 70)

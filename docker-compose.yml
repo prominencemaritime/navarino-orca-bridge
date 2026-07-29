@@ -34,6 +34,8 @@ services:
       - ./logs:/app/logs
       # Persist state (for future use)
       - ./state:/app/state
+      # Persist yaml credentials
+      - ./vessels.yaml:/app/vessels.yaml:ro
     
     networks:
       - monitoring

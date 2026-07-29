@@ -21,7 +21,7 @@ def main():
     print("=" * 60)
     
     results = bridge.sync_all_vessels(
-        vessel_identifiers=ctx.config.vessel_identifiers,
+        vessels=ctx.config.vessels,
         sync_history=False,
         dry_run=ctx.config.dry_run
     )
@@ -39,7 +39,7 @@ def main():
     print("=" * 60)
     
     results = bridge.sync_all_vessels(
-        vessel_identifiers=ctx.config.vessel_identifiers,
+        vessels=ctx.config.vessels,
         sync_history=True,
         dry_run=ctx.config.dry_run
     )

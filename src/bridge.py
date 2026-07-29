@@ -11,6 +11,8 @@ from src.clients.orca import ORCAClient
 from src.parsers.infinity_parser import InfinityParser
 from src.transformers.orca_formatter import ORCAFormatter
 
+from config.settings import VesselConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ class InfinityORCABridge:
     
     def __init__(
         self,
-        infinity_client: InfinityWebServiceClient,
+        infinity_clients: Dict[str, InfinityWebServiceClient],
         orca_client: ORCAClient,
         timezone: str="UTC",
         logs_dir: Path=None
@@ -33,7 +35,7 @@ class InfinityORCABridge:
             timezone: Timezone for health status timestamps
             logs_dir: Directory for logs and health status file
         """
-        self.infinity = infinity_client
+        self.infinity_clients = infinity_clients
         self.orca = orca_client
         self.parser = InfinityParser()
         self.timezone = timezone
@@ -105,13 +107,15 @@ class InfinityORCABridge:
         error_message = ""
         
         try:
+            client = self.infinity_clients[vessel_ref_code]
+
             # Step 1: Fetch live position from Infinity
             logger.info("Fetching live position from Infinity...")
-            position_xml = self.infinity.get_live_position(vessel_ref_code)
+            position_xml = client.get_live_position(vessel_ref_code)
             
             # Step 2: Fetch interface status from Infinity
             logger.info("Fetching interface status from Infinity...")
-            interface_xml = self.infinity.get_vessel_current_interface(vessel_ref_code)
+            interface_xml = client.get_vessel_current_interface(vessel_ref_code)
             
             # Step 3: Parse responses
             logger.info("Parsing Infinity responses...")
@@ -195,13 +199,15 @@ class InfinityORCABridge:
         logger.info(f"Starting history sync | vessel={vessel_ref_code} | imo={imo} | dry_run={dry_run}")
         
         try:
+            client = self.infinity_clients[vessel_ref_code]
+
             # Step 1: Fetch history from Infinity
             logger.info("Fetching position history from Infinity...")
-            history_xml = self.infinity.get_history_positions(vessel_ref_code)
+            history_xml = client.get_history_positions(vessel_ref_code)
             
             # Step 2: Fetch interface status
             logger.info("Fetching interface status from Infinity...")
-            interface_xml = self.infinity.get_vessel_current_interface(vessel_ref_code)
+            interface_xml = client.get_vessel_current_interface(vessel_ref_code)
             
             # Step 3: Parse responses
             logger.info("Parsing Infinity responses...")
@@ -263,7 +269,7 @@ class InfinityORCABridge:
     
     def sync_all_vessels(
         self,
-        vessel_identifiers: Dict[str, int],
+        vessels: List[VesselConfig],
         sync_history: bool = False,
         dry_run: bool = False
     ) -> List[Dict[str, Any]]:
@@ -278,7 +284,7 @@ class InfinityORCABridge:
         Returns:
             List of sync results for each vessel
         """
-        logger.info(f"Starting batch sync | vessels={len(vessel_identifiers)} | history={sync_history} | dry_run={dry_run}")
+        logger.info(f"Starting batch sync | vessels={len(vessels)} | history={sync_history} | dry_run={dry_run}")
         
         results = []
 
@@ -286,7 +292,10 @@ class InfinityORCABridge:
         any_errors = False
         error_messages = []
         
-        for vessel_ref_code, imo in vessel_identifiers.items():
+        for vessel in vessels:
+            vessel_ref_code = vessel.ref_code
+            imo = vessel.imo
+
             logger.info(f"Processing vessel {vessel_ref_code}...")
             
             if sync_history:
