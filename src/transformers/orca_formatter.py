@@ -49,7 +49,7 @@ class ORCAFormatter:
                 value['course'] = pos['course']
             
             if pos.get('speed_og') is not None:
-                value['speed'] = round(pos['speed_og'], 3)
+                value['speed_og'] = round(pos['speed_og'], 3)
             
             values.append(value)
         

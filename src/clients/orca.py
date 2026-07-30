@@ -59,6 +59,7 @@ class ORCAClient:
         logger.debug(f"POST {url}")
         
         try:
+            logger.info(f"POST payload: {json.dumps(data)}")
             response = requests.post(
                 url,
                 json=data,
