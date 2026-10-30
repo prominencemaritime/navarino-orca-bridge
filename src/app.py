@@ -73,12 +73,31 @@ def initialise_app() -> AppContext:
         timeout=config.request_timeout
     )
 
+    # Optional datalab sync log (imported lazily so the bridge still starts
+    # when datalab settings are absent and SYNC_LOG_ENABLED is false)
+    sync_log = None
+    if config.sync_log_enabled:
+        try:
+            from src.db.sync_log import SyncLogRepository
+            sync_log = SyncLogRepository()
+            if sync_log.check():
+                logger.info("Sync log ENABLED | external.vessel_position_sync_log")
+            else:
+                logger.error(
+                    "Sync log enabled but datalab is unreachable at startup; "
+                    "will retry on each attempt"
+                )
+        except Exception as e:
+            logger.error(f"Sync log DISABLED: datalab setup failed | error={e}")
+            sync_log = None
+
     # Step 5: Initialise bridge
     bridge = InfinityORCABridge(
             infinity_clients,
             orca_client,
             timezone=config.timezone,
-            logs_dir=config.logs_dir
+            logs_dir=config.logs_dir,
+            sync_log=sync_log
     )
 
     logger.info("Application initialised successfully")

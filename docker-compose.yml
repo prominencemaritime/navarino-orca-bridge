@@ -5,29 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: navarino-orca-bridge
     restart: unless-stopped
-    
-    environment:
-      # Load from .env file
-      - DRY_RUN=${DRY_RUN}
-      - INFINITY_BASE_URL=${INFINITY_BASE_URL}
-      - INFINITY_TOKEN=${INFINITY_TOKEN}
-      - VESSEL_REF_CODE=${VESSEL_REF_CODE}
-      - VESSEL_IMO=${VESSEL_IMO}
-      - ORCA_TEST=${ORCA_TEST}
-      - ORCA_BASE_URL_TEST=${ORCA_BASE_URL_TEST}
-      - ORCA_BASE_URL_LIVE=${ORCA_BASE_URL_LIVE}
-      - ORCA_X_API_KEY=${ORCA_X_API_KEY}
-      - ORCA_X_SOURCE=${ORCA_X_SOURCE}
-      - ORCA_X_ORGANIZATION=${ORCA_X_ORGANIZATION}
-      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES}
-      - SCHEDULE_FREQUENCY_HOURS=${SCHEDULE_FREQUENCY_HOURS}
-      - TIMEZONE=${TIMEZONE}
-      - LOG_LEVEL=${LOG_LEVEL}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
-      - DEBUG=${DEBUG:-False}
-      
-      # Email settings (optional - not used in bridge)
-      - ENABLE_EMAIL_ALERT=${ENABLE_EMAIL_ALERT:-False}
+
+    env_file: 
+      - .env
     
     volumes:
       # Persist logs

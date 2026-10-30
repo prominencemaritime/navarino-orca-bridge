@@ -26,6 +26,8 @@ class ORCAClient:
         self.timeout = timeout
         self.x_source = x_source
         self.x_organization = x_organization
+        self.last_status_code = None
+        self.last_response_text = None
         
         logger.info(f"Initialized ORCA client | url={self.base_url}")
     
@@ -43,6 +45,8 @@ class ORCAClient:
         Raises:
             requests.exceptions.RequestException: On network/HTTP errors
         """
+        self.last_status_code = None
+        self.last_response_text = None
         url = f"{self.base_url}/data"
         headers = {
             "Content-Type": "application/json",
@@ -68,6 +72,8 @@ class ORCAClient:
             )
             
             logger.info(f"ORCA response | status={response.status_code}")
+            self.last_status_code = response.status_code
+            self.last_response_text = response.text[:500]
             
             # Handle different response codes
             if response.status_code in [200, 201, 204]:

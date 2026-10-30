@@ -45,6 +45,9 @@ class BridgeConfig:
     sync_interval_minutes: int
     timezone: str
 
+    # Datalab sync log
+    sync_log_enabled: bool
+
     # Logs
     log_file: Path
     log_level: str
@@ -100,6 +103,7 @@ class BridgeConfig:
             # Scheduling
             sync_interval_minutes=int(config('SYNC_INTERVAL_MINUTES', default=5)),
             timezone=config('TIMEZONE', default='UTC'),
+            sync_log_enabled=config('SYNC_LOG_ENABLED', default=False, cast=bool),
 
             # Logs
             log_file=logs_dir / config('LOG_FILE', default='bridge.log'),

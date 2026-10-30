@@ -1,9 +1,11 @@
 # src/bridge.py
 
 import logging
+import time
 from typing import List, Dict, Any
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from src.clients.infinity import InfinityWebServiceClient
@@ -18,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 class InfinityORCABridge:
     """Bridge to sync vessel data from Infinity to ORCA"""
-    
+
+    # Provider key stored in the datalab sync log. Becomes per-vessel
+    # configuration once a second provider (e.g. marpoint) is integrated.
+    PROVIDER = "navarino_infinity"
+
     def __init__(
         self,
         infinity_clients: Dict[str, InfinityWebServiceClient],
         orca_client: ORCAClient,
         timezone: str="UTC",
-        logs_dir: Path=None
+        logs_dir: Path=None,
+        sync_log=None
     ):
         """
         Initialise the bridge
@@ -34,11 +41,13 @@ class InfinityORCABridge:
             orca_client: Initialised ORCA client
             timezone: Timezone for health status timestamps
             logs_dir: Directory for logs and health status file
+            sync_log: Optional SyncLogRepository; if None, no datalab logging
         """
         self.infinity_clients = infinity_clients
         self.orca = orca_client
         self.parser = InfinityParser()
         self.timezone = timezone
+        self.sync_log = sync_log
         
         # Set logs directory (default to /app/logs for Docker)
         if logs_dir is None:
@@ -62,7 +71,7 @@ class InfinityORCABridge:
             # Create directory if it does not exist
             health_file.parent.mkdir(parents=True, exist_ok=True)
 
-            # Get timezone-aware timestamp
+            # Get timezone-aware timestamp
             now = datetime.now(tz=ZoneInfo(self.timezone))
 
             # Write automatically using a temporary file
@@ -74,13 +83,45 @@ class InfinityORCABridge:
                 if error_msg:
                     f.write(f"ERROR_MSG: {error_msg}\n")
 
-            # Atomic rename (prevents healthcheck from reading partially written file)
+            # Atomic rename (prevents healthcheck from reading partially written file)
             temp_file.replace(health_file)
 
             logger.debug(f"health status written: {status}")
 
         except Exception as e:
             logger.error(f"Failed to write health status: {e}")
+
+
+    def _log_attempt(
+        self,
+        vessel_ref_code: str,
+        imo,
+        source_host,
+        outcome: str,
+        *,
+        started: float,
+        payload=None,
+        interface=None,
+        orca_status=None,
+        orca_response=None,
+        error=None
+    ) -> None:
+        """Record one sync attempt in the datalab (no-op when disabled)."""
+        if self.sync_log is None:
+            return
+        self.sync_log.log_attempt(
+            vessel=vessel_ref_code,
+            imo=str(imo),
+            provider=self.PROVIDER,
+            source_host=source_host,
+            interface=interface,
+            outcome=outcome,
+            payload=payload,
+            orca_status=orca_status,
+            orca_response=orca_response,
+            error=error,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
 
 
     def sync_vessel_live(
@@ -105,9 +146,17 @@ class InfinityORCABridge:
         # Initialise health status as ERROR in case of early exception
         error_occurred = False
         error_message = ""
+
+        # Datalab sync log bookkeeping
+        started = time.monotonic()
+        stage = "fetch"            # fetch -> parse -> post
+        source_host = None
+        interface = None
+        orca_data = None
         
         try:
             client = self.infinity_clients[vessel_ref_code]
+            source_host = urlparse(client.base_url).hostname
 
             # Step 1: Fetch live position from Infinity
             logger.info("Fetching live position from Infinity...")
@@ -118,12 +167,18 @@ class InfinityORCABridge:
             interface_xml = client.get_vessel_current_interface(vessel_ref_code)
             
             # Step 3: Parse responses
+            stage = "parse"
             logger.info("Parsing Infinity responses...")
             position = self.parser.parse_live_position(position_xml)
             interface = self.parser.parse_current_interface(interface_xml)
             
             if not position:
                 logger.error("Failed to parse position data")
+                self._log_attempt(
+                    vessel_ref_code, imo, source_host, "parse_failed",
+                    started=started, interface=interface,
+                    error="Failed to parse position data"
+                )
                 return {
                     "status": "error",
                     "vessel": vessel_ref_code,
@@ -157,8 +212,16 @@ class InfinityORCABridge:
                 }
             
             else:
+                stage = "post"
                 logger.info("Posting to ORCA...")
                 orca_response = self.orca.post_data(orca_data)
+
+                self._log_attempt(
+                    vessel_ref_code, imo, source_host, "posted",
+                    started=started, payload=orca_data, interface=interface,
+                    orca_status=self.orca.last_status_code,
+                    orca_response=self.orca.last_response_text
+                )
                 
                 logger.info(f"✓ Successfully synced vessel {vessel_ref_code}")
                 
@@ -173,6 +236,22 @@ class InfinityORCABridge:
             logger.error(f"Failed to sync vessel {vessel_ref_code} | error={e}")
             error_message = f"Failed to sync {vessel_ref_code}: {str(e)}"
             error_occurred = True
+
+            # Only a post-stage HTTP status comes from ORCA; during the fetch
+            # stage a 503 comes from Infinity.
+            orca_status = None
+            if stage == "post":
+                orca_status = getattr(getattr(e, "response", None), "status_code", None)
+            self._log_attempt(
+                vessel_ref_code, imo, source_host,
+                {"fetch": "fetch_failed",
+                 "parse": "parse_failed",
+                 "post": "post_failed"}[stage],
+                started=started, payload=orca_data, interface=interface,
+                orca_status=orca_status, error=str(e),
+                orca_response=self.orca.last_response_text if stage == "post" else None
+            )
+
             return {
                 "status": "error",
                 "vessel": vessel_ref_code,
@@ -288,7 +367,7 @@ class InfinityORCABridge:
         
         results = []
 
-        # Track if any errors occurred
+        # Track if any errors occurred
         any_errors = False
         error_messages = []
         
@@ -305,10 +384,10 @@ class InfinityORCABridge:
             
             results.append(result)
 
-            # Check for errors
+            # Check for errors
             if result['status'] == 'error':
                 any_errors = True
-                error_msg = result.get('error', 'Unknown error')
+                error_msg = result.get('error') or result.get('message') or 'Unknown error'
                 error_messages.append(f"{vessel_ref_code}: {error_msg}")
         
         # Summary
