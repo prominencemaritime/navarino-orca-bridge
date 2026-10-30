@@ -6,7 +6,7 @@ services:
     container_name: navarino-orca-bridge
     restart: unless-stopped
 
-    env_file: 
+    env_file:
       - .env
     
     volumes:
