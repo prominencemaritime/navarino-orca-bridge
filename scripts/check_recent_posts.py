@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
 Show each vessel's latest confirmed ORCA POST from the bridge logs.
-USAGE (locally): "python scripts/check_recent_posts.py --tz Europe/Athens"
+
+USAGE (locally): 
+
+        "python scripts/check_recent_posts.py --tz Europe/Athens"
+    
+USAGE (production): 
+
+        "docker compose exec vessel-monitor python3 scripts/check_recent_posts.py"
 
 Vessels come from vessels.yaml. A POST counts only when ORCA confirmed it.
 

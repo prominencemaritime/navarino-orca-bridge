@@ -48,3 +48,8 @@ docs/
 secrets/
 
 .pytest_cache
+
+# Runtime data (not part of the image)
+/monitor
+/logs
+/state

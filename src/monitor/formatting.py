@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 from src.monitor.log_scanner import ScanResult, VesselStatus
 
-COMPANY_NAME = "Navarino ORCA Bridge vessel monitor"
+COMPANY_NAME = "Prominence Maritime SA"
 
 STATUS_BADGES = {
     "OK":      ("#e8f5e9", "#2e7d32", "#43a047"),
@@ -174,13 +174,13 @@ def _page(title: str, subtitle: str, body_html: str, logo_cid: Optional[str]) ->
 </head>
 <body>
 <div class="container">
-    <div class="header">
+    <div class="header" style="background-color:#0B4877;color:#ffffff;padding:20px 30px;">
         <table role="presentation" style="width:100%;border-collapse:collapse;">
             <tr>
                 <td style="border:none;padding:0;vertical-align:middle;">{logo_html}</td>
-                <td style="border:none;padding:0;text-align:right;vertical-align:middle;">
-                    <h1>{escape(title)}</h1>
-                    <p>{escape(subtitle)}</p>
+                <td style="border:none;padding:0;text-align:right;vertical-align:middle;color:#ffffff;">
+                    <h1 style="margin:0;font-size:22px;font-weight:600;color:#ffffff;">{escape(title)}</h1>
+                    <p style="margin:5px 0 0 0;font-size:14px;color:#d7e7f5;">{escape(subtitle)}</p>
                 </td>
             </tr>
         </table>
