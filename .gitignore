@@ -49,3 +49,6 @@ secrets/
 secrets.env
 
 .python-version
+
+# Vessel Posting Monitor
+/monitor/

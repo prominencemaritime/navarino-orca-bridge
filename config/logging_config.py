@@ -3,6 +3,7 @@
 import logging
 import sys
 from pathlib import Path
+import time
 
 
 def setup_logging(log_file: Path, log_level: str = "INFO") -> None:
@@ -13,6 +14,7 @@ def setup_logging(log_file: Path, log_level: str = "INFO") -> None:
         fmt='%(asctime)s | %(levelname)-8s | %(filename)s:%(lineno)-4d | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    formatter.converter = time.gmtime
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)

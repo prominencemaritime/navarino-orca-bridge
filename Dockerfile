@@ -18,9 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY config/ ./config/
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY media/ ./media/
 
 # Create log and state directories
-RUN mkdir -p /app/logs /app/state
+RUN mkdir -p /app/logs /app/state /app/monitor
 
 # Make scripts executable
 RUN chmod +x /app/scripts/*.py

@@ -63,6 +63,7 @@ class ORCAClient:
         logger.debug(f"POST {url}")
         
         try:
+            # Do not change the level or text of this line: the vessel monitor (src/monitor) parses it.
             logger.info(f"POST payload: {json.dumps(data)}")
             response = requests.post(
                 url,

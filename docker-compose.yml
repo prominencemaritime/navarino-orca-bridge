@@ -23,6 +23,30 @@ services:
     labels:
       - "com.docker.healthcheck.description=Navarino ORCA Bridge Health"
 
+
+  vessel-monitor:
+   build:
+     context: .
+     dockerfile: Dockerfile
+   container_name: vessel-monitor
+   restart: unless-stopped
+   command: ["python3", "-m", "src.monitor"]
+   env_file:
+     - .env
+   volumes:
+     - ./logs:/app/logs:ro
+     - ./vessels.yaml:/app/vessels.yaml:ro
+     - ./monitor:/app/monitor
+   healthcheck:
+     test: ["CMD", "python3", "/app/scripts/monitor_healthcheck.py"]
+     interval: 2m
+     timeout: 10s
+     start_period: 2m
+     retries: 2
+   networks:
+     - monitoring
+
+
 networks:
   monitoring:
     driver: bridge
