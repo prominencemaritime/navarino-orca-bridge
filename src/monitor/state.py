@@ -120,6 +120,7 @@ class StateStore:
             dir=self.path.parent, prefix=f".{self.path.name}.", suffix=".tmp"
         )
         try:
+            os.fchmod(fd, 0o644)
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=2)
                 fh.write("\n")
