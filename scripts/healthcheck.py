@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 """
-Healthcheck script for Docker containers with flexible scheduling.
-Supports both SCHEDULE_FREQUENCY_HOURS and SCHEDULE_TIMES modes.
+Docker healthcheck for the Navarino ORCA bridge.
 
-This script checks if /app/logs/health_status.txt exists, contains "OK",
-and has been updated recently enough based on the schedule configuration.
+Healthy while logs/health_status.txt shows a completed sync cycle within the
+last HEALTHCHECK_MAX_AGE_MINUTES (default 60), whether that cycle ended OK or
+ERROR. Vessels that stop reporting are alerted by the vessel-monitor service.
 
-Environment Variables:
-    SCHEDULE_FREQUENCY_HOURS: Run every N hours (e.g., "2" for every 2 hours)
-    SCHEDULE_TIMES: Run at specific times (e.g., "12:00,18:00")
-
-At least one must be set. If both are set, SCHEDULE_FREQUENCY_HOURS takes precedence.
-
-Exit Codes:
-    0: Healthy
-    1: Unhealthy
+Exit codes: 0 healthy, 1 unhealthy.
 """
 import os
 import sys
@@ -39,7 +31,6 @@ def main():
     """
     BASE_DIR = Path(__file__).resolve().parent.parent
     health_file = BASE_DIR / "logs" / "health_status.txt"
-    #health_file = Path("/app/logs/health_status.txt")
 
     # Validate file structure first
     try:
@@ -70,44 +61,21 @@ def main():
         print(f"Cannot calculate file age: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Check status and age
-    if health_data['status'] == "ERROR":
-        # For ERROR status, check if it's a recent error
-        if file_age_minutes > max_age_minutes:
-            print(
-                f"Health status is ERROR and stale: {file_age_minutes:.1f} minutes old "
-                f"(max: {max_age_minutes:.1f} minutes). "
-                f"Error: {health_data.get('error_msg', 'No error message')}",
-                file=sys.stderr
-            )
-            sys.exit(1)
-        else:
-            # Recent error - still fail but with different message
-            print(
-                f"Health status is ERROR (recent): {health_data.get('error_msg', 'No error message')}",
-                file=sys.stderr
-            )
-            sys.exit(1)
+    # Healthy = the bridge is still completing sync cycles. Per-vessel sync
+    # errors (status ERROR) are not a container problem: vessels that stop
+    # reporting are alerted by the vessel-monitor service.
+    if file_age_minutes > max_age_minutes:
+       print(
+           f"No completed sync cycle for {file_age_minutes:.1f} minutes "
+           f"(max: {max_age_minutes:.1f}). Last status: {health_data['status']} "
+           f"{health_data.get('error_msg', '')}".rstrip(),
+           file=sys.stderr,
+       )
+       sys.exit(1)
 
-    elif health_data['status'] == "OK":
-        # Check if OK status is recent enough
-        if file_age_minutes > max_age_minutes:
-            print(
-                f"Health status file is too old: {file_age_minutes:.1f} minutes "
-                f"(max: {max_age_minutes:.1f} minutes)",
-                file=sys.stderr
-            )
-            sys.exit(1)
-
-    else:
-        print(f"Unknown health status: {health_data['status']}", file=sys.stderr)
-        sys.exit(1)
-
-    # All checks passed
     print(
-        f"Healthy (status: {health_data['status']}, "
-        f"alert: {health_data.get('alert_type', 'unknown')}, "
-        f"age: {file_age_minutes:.1f}/{max_age_minutes:.1f} minutes)"
+       f"Healthy (last sync cycle {file_age_minutes:.1f} min ago, "
+       f"status {health_data['status']}, max {max_age_minutes:.0f} min)"
     )
     sys.exit(0)
 
@@ -234,105 +202,13 @@ def validate_health_file_structure(health_file: Path) -> None:
 
 
 def calculate_max_age() -> float:
-    """
-    Calculate maximum allowed age for health_status.txt based on schedule mode.
-
-    Returns:
-        Maximum age in minutes
-    """
-    freq_hours = os.getenv('SCHEDULE_FREQUENCY_HOURS', '').strip()
-    schedule_times = os.getenv('SCHEDULE_TIMES', '').strip()
-
-    # Mode 1: Frequency-based (e.g., every 2 hours)
-    if freq_hours:
-        try:
-            hours = float(freq_hours)
-            # Allow schedule interval + 10 minute buffer
-            return hours * 60 + 10
-        except (ValueError, TypeError):
-            print(f"Invalid SCHEDULE_FREQUENCY_HOURS: {freq_hours}", file=sys.stderr)
-            return 70  # Default fallback: 1 hour + 10 min buffer
-
-    # Mode 2: Specific times (e.g., 12:00,18:00)
-    elif schedule_times:
-        try:
-            return calculate_max_age_from_times(schedule_times)
-        except Exception as e:
-            print(f"Error calculating age from SCHEDULE_TIMES: {e}", file=sys.stderr)
-            return 70  # Default fallback
-
-    # Mode 3: No schedule defined (default to hourly + buffer)
-    else:
-        print("Warning: Neither SCHEDULE_FREQUENCY_HOURS nor SCHEDULE_TIMES set", file=sys.stderr)
-        return 70  # 1 hour + 10 minute buffer
-
-
-def calculate_max_age_from_times(schedule_times: str) -> float:
-    """
-    Calculate maximum age based on SCHEDULE_TIMES.
-
-    For times like "12:00,18:00", the health file should be updated within
-    10 minutes after the most recent scheduled time.
-
-    Uses the effective timezone (SCHEDULE_TIMES_TIMEZONE or TIMEZONE) for
-    determining "now" and calculating schedule times.
-
-    Args:
-        schedule_times: Comma-separated list of times (HH:MM format)
-
-    Returns:
-        Maximum age in minutes (time since most recent scheduled time + 10 min buffer)
-
-    Note:
-        This function uses timezone-aware datetime calculations to ensure
-        correct behavior across different timezones.
-    """
-    # Get timezone-aware "now"
-    tz_name = get_effective_timezone()
-    try:
-        now = datetime.now(tz=ZoneInfo(tz_name))
-    except Exception as e:
-        print(f"Invalid timezone '{tz_name}': {e}, falling back to UTC", file=sys.stderr)
-        now = datetime.now(tz=ZoneInfo('UTC'))
-
-    # Parse all scheduled times
-    time_list = [t.strip() for t in schedule_times.split(',')]
-    scheduled_datetimes = []
-
-    for time_str in time_list:
-        try:
-            hour, minute = map(int, time_str.split(':'))
-
-            # Create timezone-aware datetime for today
-            scheduled_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            scheduled_datetimes.append(scheduled_today)
-
-            # Also consider yesterday's schedule
-            scheduled_yesterday = scheduled_today - timedelta(days=1)
-            scheduled_datetimes.append(scheduled_yesterday)
-
-        except (ValueError, IndexError) as e:
-            print(f"Invalid time format '{time_str}': {e}", file=sys.stderr)
-            continue
-
-    if not scheduled_datetimes:
-        print("No valid times found in SCHEDULE_TIMES", file=sys.stderr)
-        return 70
-
-    # Find the most recent scheduled time that has passed
-    past_times = [dt for dt in scheduled_datetimes if dt <= now]
-
-    if not past_times:
-        # No scheduled time has passed yet today - use most recent from yesterday
-        past_times = sorted(scheduled_datetimes)
-
-    most_recent = max(past_times)
-
-    # Calculate minutes since most recent scheduled time
-    minutes_since = (now - most_recent).total_seconds() / 60
-
-    # Allow the time since last schedule + 10 minute buffer
-    return minutes_since + 10
+   """Minutes without a completed sync cycle before the container is unhealthy."""
+   raw = os.getenv('HEALTHCHECK_MAX_AGE_MINUTES', '').strip()
+   try:
+       return float(raw) if raw else 60.0
+   except ValueError:
+       print(f"Invalid HEALTHCHECK_MAX_AGE_MINUTES: {raw!r}; using 60", file=sys.stderr)
+       return 60.0
 
 
 if __name__ == "__main__":

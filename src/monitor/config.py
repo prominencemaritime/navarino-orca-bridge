@@ -2,9 +2,8 @@
 """
 Configuration for the vessel monitor, loaded from the environment / .env.
 
-Every monitor-specific variable is prefixed MONITOR_ because the monitor shares
-.env with the bridge, which already uses SCHEDULE_FREQUENCY_HOURS (0.0833, for its
-own healthcheck) and DRY_RUN. SMTP_* are shared as-is.
+Every monitor-specific variable is prefixed MONITOR_ so it can't clash with the
+bridge's own settings in the shared .env (e.g. DRY_RUN). SMTP_* are shared as-is.
 """
 from __future__ import annotations
 
