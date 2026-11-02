@@ -16,6 +16,9 @@ services:
       - ./state:/app/state
       # Persist yaml credentials
       - ./vessels.yaml:/app/vessels.yaml:ro
+      # RDS CA bundle for verify-full SSL to the datalab
+      - /etc/ssl/certs/aws-global-bundle.pem:/etc/ssl/certs/aws-global-bundle.pem:ro
+
     
     networks:
       - monitoring
