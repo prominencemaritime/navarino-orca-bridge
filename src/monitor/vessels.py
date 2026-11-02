@@ -2,10 +2,21 @@
 """Load the vessel list (ref_code -> IMO) from vessels.yaml."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
+from urllib.parse import urlparse
 
 import yaml
+
+# Matches InfinityORCABridge.PROVIDER; override per vessel with 'provider:' in vessels.yaml.
+DEFAULT_PROVIDER = "navarino_infinity"
+
+
+@dataclass(frozen=True)
+class VesselInfo:
+    provider: str
+    source_host: str
 
 
 def load_vessels(path: Path) -> Dict[str, str]:
@@ -51,3 +62,26 @@ def load_vessels(path: Path) -> Dict[str, str]:
         seen_imos.add(imo)
 
     return vessels
+
+
+def load_vessel_details(path: Path) -> Dict[str, VesselInfo]:
+    """
+    Return IMO -> provider and source host, for display in alerts.
+
+    source_host is the hostname of infinity_base_url, matching the source_host
+    column of the datalab sync log. Missing optional fields give "".
+    """
+    with Path(path).open(encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+
+    entries = data.get("vessels") if isinstance(data, dict) else None
+    details: Dict[str, VesselInfo] = {}
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict) or "imo" not in entry:
+            continue
+        url = str(entry.get("infinity_base_url") or "")
+        details[str(entry["imo"]).strip()] = VesselInfo(
+            provider=str(entry.get("provider") or DEFAULT_PROVIDER).strip(),
+            source_host=urlparse(url).hostname or "",
+        )
+    return details

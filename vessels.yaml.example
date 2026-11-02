@@ -7,8 +7,10 @@ vessels:
     imo: "1234567"
     infinity_base_url: https://node1.infinityfleet.net
     infinity_token: token_for_vessel1
+    provider: navarino_infinity
 
   - ref_code: vessel2
     imo: "7654321"
     infinity_base_url: https://node2.infinityfleet.net
     infinity_token: token_for_vessel2
+    provider: navarino_infinity

@@ -20,7 +20,7 @@ import logging
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from src.monitor.config import MonitorConfig
 from src.monitor.email_sender import EmailSender
@@ -33,7 +33,7 @@ from src.monitor.formatting import (
 )
 from src.monitor.log_scanner import STATUS_OK, ScanResult, scan_logs
 from src.monitor.state import MonitorState, StateStore
-from src.monitor.vessels import load_vessels
+from src.monitor.vessels import VesselInfo, load_vessel_details, load_vessels
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class VesselMonitor:
         self.store = store
         self._lock = threading.Lock()
         self._send_failures = 0
+        self._details: Dict[str, VesselInfo] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -70,6 +71,7 @@ class VesselMonitor:
 
         try:
             vessels = load_vessels(self.cfg.vessels_file)
+            self._details = load_vessel_details(self.cfg.vessels_file)
             result = scan_logs(
                 self.cfg.logs_dir,
                 vessels,
@@ -139,7 +141,8 @@ class VesselMonitor:
             return
 
         email = build_outage_email(
-            result, self.cfg.alert_repeat_hours, self.cfg.display_timezone, self.cfg.logo_cid
+            result, self.cfg.alert_repeat_hours, self.cfg.display_timezone, self.cfg.logo_cid,
+            details=self._details,
         )
         if not self._deliver(email, self.cfg.alert_recipients, self.cfg.alert_cc_recipients):
             return
@@ -165,6 +168,7 @@ class VesselMonitor:
                 now,
                 self.cfg.display_timezone,
                 self.cfg.logo_cid,
+                info=self._details.get(v.imo),
             )
             if self._deliver(email, self.cfg.alert_recipients, self.cfg.alert_cc_recipients):
                 logger.info(f"Recovery sent for {v.ref_code} (IMO {v.imo})")
@@ -185,7 +189,9 @@ class VesselMonitor:
             return
 
         recipients = self.cfg.parse_error_recipients or self.cfg.alert_recipients
-        email = build_parse_issue_email(result, self.cfg.display_timezone, self.cfg.logo_cid)
+        email = build_parse_issue_email(
+            result, self.cfg.display_timezone, self.cfg.logo_cid, details=self._details
+        )
         if self._deliver(email, recipients, []):
             state.last_parse_alert_at = now
 

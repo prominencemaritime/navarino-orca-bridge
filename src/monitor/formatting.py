@@ -10,10 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
-from typing import List, Optional
+from typing import List, Mapping, Optional
 from zoneinfo import ZoneInfo
 
 from src.monitor.log_scanner import ScanResult, VesselStatus
+from src.monitor.vessels import VesselInfo
+
+VesselDetails = Mapping[str, VesselInfo]
 
 COMPANY_NAME = "Prominence Maritime SA"
 
@@ -66,7 +69,11 @@ def _hours_between(start: Optional[datetime], end: Optional[datetime]) -> Option
 # Plain-text status table (CLI and email text part)
 # ----------------------------------------------------------------------
 
-def render_status_text(result: ScanResult, tz: str = "UTC") -> str:
+def _info(details: Optional[VesselDetails], imo: str) -> VesselInfo:
+    return (details or {}).get(imo) or VesselInfo(provider="", source_host="")
+
+
+def render_status_text(result: ScanResult, tz: str = "UTC", details: Optional[VesselDetails] = None) -> str:
     lines = [
         f"Checked at: {format_dt(result.checked_at, tz)} {tz}"
         f" | outage threshold: {format_duration(result.threshold_hours)}"
@@ -75,13 +82,15 @@ def render_status_text(result: ScanResult, tz: str = "UTC") -> str:
         + (f" (earliest entry {format_dt(result.coverage_start, tz)} {tz})"
            if result.coverage_start else ""),
         "",
-        f"{'VESSEL':<14} {'IMO':<9} {'STATUS':<9} "
+        f"{'VESSEL':<14} {'IMO':<9} {'PROVIDER':<18} {'SOURCE HOST':<27} {'STATUS':<9} "
         f"{'LAST POSITION (' + tz + ')':<22} {'LAST POST (' + tz + ')':<22} AGE",
-        "-" * 88,
+        "-" * 134,
     ]
     for v in result.vessels:
+        info = _info(details, v.imo)
         lines.append(
-            f"{v.ref_code:<14} {v.imo:<9} {v.status:<9} "
+            f"{v.ref_code:<14} {v.imo:<9} {info.provider or '-':<18} {info.source_host or '-':<27} "
+            f"{v.status:<9} "
             f"{format_dt(v.last_position_at, tz):<22} {format_dt(v.last_post_at, tz):<22} "
             f"{format_duration(v.age_hours)}"
         )
@@ -101,11 +110,15 @@ def _badge(status: str) -> str:
     )
 
 
-def _status_table_html(vessels: List[VesselStatus], tz: str) -> str:
+def _status_table_html(
+    vessels: List[VesselStatus], tz: str, details: Optional[VesselDetails] = None
+) -> str:
     rows = "".join(
         "<tr>"
         f"<td>{escape(v.ref_code)}</td>"
         f"<td>{escape(v.imo)}</td>"
+        f"<td>{escape(_info(details, v.imo).provider or '-')}</td>"
+        f"<td>{escape(_info(details, v.imo).source_host or '-')}</td>"
         f"<td>{_badge(v.status)}</td>"
         f"<td>{escape(format_dt(v.last_position_at, tz))}</td>"
         f"<td>{escape(format_dt(v.last_post_at, tz))}</td>"
@@ -116,7 +129,7 @@ def _status_table_html(vessels: List[VesselStatus], tz: str) -> str:
     tz_label = escape(tz)
     return (
         '<div class="table-wrapper"><table><thead><tr>'
-        "<th>Vessel</th><th>IMO</th><th>Status</th>"
+        "<th>Vessel</th><th>IMO</th><th>Provider</th><th>Source Host</th><th>Status</th>"
         f"<th>Last Position ({tz_label})</th><th>Last ORCA POST ({tz_label})</th><th>Age</th>"
         f"</tr></thead><tbody>{rows}</tbody></table></div>"
     )
@@ -220,6 +233,7 @@ def build_outage_email(
     repeat_hours: float,
     tz: str,
     logo_cid: Optional[str],
+    details: Optional[VesselDetails] = None,
 ) -> EmailContent:
     """Digest listing every vessel, sent while at least one vessel is STALE/MISSING."""
     failing = result.failing
@@ -244,7 +258,7 @@ def build_outage_email(
 
     html_body = (
         _intro_html(intro + [escape(n) for n in notes])
-        + _status_table_html(result.vessels, tz)
+        + _status_table_html(result.vessels, tz, details)
         + _key_value_table_html([
             ("Outage threshold", escape(threshold)),
             ("Judged on", escape("position timestamp" if result.basis == "position" else "POST time")),
@@ -258,7 +272,7 @@ def build_outage_email(
         + f"Not reporting for more than {threshold}: {names}\n"
         + f"This alert repeats every {repeat} while the condition persists.\n"
         + "".join(f"{n}\n" for n in notes)
-        + "\n" + render_status_text(result, tz) + "\n"
+        + "\n" + render_status_text(result, tz, details) + "\n"
         + _text_footer()
     )
 
@@ -273,14 +287,18 @@ def build_recovery_email(
     checked_at: datetime,
     tz: str,
     logo_cid: Optional[str],
+    info: Optional[VesselInfo] = None,
 ) -> EmailContent:
     """Per-vessel email sent when a vessel in a declared outage reports again."""
     subject = f"AlertDev | {vessel.ref_code} API Online"
     downtime = format_duration(_hours_between(last_seen_before_outage, vessel.reference_at))
+    info = info or VesselInfo(provider="", source_host="")
 
     rows = [
         ("Vessel", escape(vessel.ref_code)),
         ("IMO", escape(vessel.imo)),
+        ("Provider", escape(info.provider or "-")),
+        ("Source host", escape(info.source_host or "-")),
         ("Last update before outage", escape(f"{format_dt(last_seen_before_outage, tz)} {tz}")),
         ("Outage alert first sent", escape(f"{format_dt(outage_declared_at, tz)} {tz}")),
         ("Reporting again since", escape(f"{format_dt(vessel.reference_at, tz)} {tz}")),
@@ -297,6 +315,8 @@ def build_recovery_email(
         + _subtitle(checked_at, tz) + "\n" + "=" * 70 + "\n\n"
         + f"{vessel.ref_code} (IMO {vessel.imo}) is reporting locations to ORCA again.\n\n"
         + "".join(f"  {label}: {value}\n" for label, value in [
+            ("Provider", info.provider or "-"),
+            ("Source host", info.source_host or "-"),
             ("Last update before outage", f"{format_dt(last_seen_before_outage, tz)} {tz}"),
             ("Outage alert first sent", f"{format_dt(outage_declared_at, tz)} {tz}"),
             ("Reporting again since", f"{format_dt(vessel.reference_at, tz)} {tz}"),
@@ -314,6 +334,7 @@ def build_parse_issue_email(
     tz: str,
     logo_cid: Optional[str],
     max_issues: int = 50,
+    details: Optional[VesselDetails] = None,
 ) -> EmailContent:
     """Technical email listing log read/parse issues found within the threshold window."""
     count = len(result.issues)
@@ -329,7 +350,7 @@ def build_parse_issue_email(
         f"The vessel monitor found <strong>{count}</strong> read/parse issue"
         f"{'s' if count != 1 else ''} in the bridge logs. Vessel statuses from this check "
         "may be incomplete.",
-    ]) + f'<ul style="line-height:1.8;">{items}</ul>' + _status_table_html(result.vessels, tz)
+    ]) + f'<ul style="line-height:1.8;">{items}</ul>' + _status_table_html(result.vessels, tz, details)
 
     text = (
         "=" * 70 + "\nVessel Monitor Log Parse Issues\n"

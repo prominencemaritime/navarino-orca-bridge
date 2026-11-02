@@ -28,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.monitor.formatting import format_duration, render_status_text  # noqa: E402
 from src.monitor.log_scanner import BASES, scan_logs  # noqa: E402
-from src.monitor.vessels import load_vessels  # noqa: E402
+from src.monitor.vessels import load_vessel_details, load_vessels # noqa: E402
 
 
 def positive_hours(text: str) -> float:
@@ -60,7 +60,7 @@ def main() -> int:
         return 2
 
     result = scan_logs(args.logs_dir, vessels, args.hours, basis=args.basis)
-    print(render_status_text(result, args.tz))
+    print(render_status_text(result, args.tz, load_vessel_details(args.vessels)))
 
     for issue in result.issues:
         print(f"WARNING: {issue.describe()}", file=sys.stderr)
